@@ -1,0 +1,20 @@
+{
+    "name": "fernando/mydb-php",
+    "description": "Mydb de nova cara, com o motor V1",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Fernando\\PuskerDB\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Fernando",
+            "email": "fernandolovephp@gmail.com"
+        }
+    ],
+  "require": {
+    "ext-readline": "*"
+  }
+}
