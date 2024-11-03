@@ -1,0 +1,20 @@
+{
+    "columns": {
+        "pkey": "id",
+        "id": "NUMBER",
+        "age": "NUMBER",
+        "name": "STRING"
+    },
+    "data": [
+        {
+            "id": 1,
+            "age": 90,
+            "name": "Fernando"
+        },
+        {
+            "id": 100,
+            "age": 50,
+            "name": "Jonas"
+        }
+    ]
+}

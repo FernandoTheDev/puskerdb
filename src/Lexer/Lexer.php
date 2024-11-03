@@ -14,14 +14,45 @@ final class Lexer
     private const string TOKEN_FUNCTION = 'FUNCTION';
 
     private array $keywords = [
-        'SELECT', 'FROM', 'WHERE', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET',
-        'USE', 'DELETE', 'CREATE', 'SHOW', 'DROP', 'TABLES', 'TABLE', 'DATABASES',
-        'DATABASE', 'STRING', 'INTEGER', 'TEXT', 'INT', 'AND', 'OR', 'PKEY',
-        'AUTO_INCREMENT'
+        'SELECT',
+        'FROM',
+        'WHERE',
+        'INSERT',
+        'INTO',
+        'VALUES',
+        'UPDATE',
+        'SET',
+        'USE',
+        'DELETE',
+        'CREATE',
+        'SHOW',
+        'DROP',
+        'TABLES',
+        'TABLE',
+        'DATABASES',
+        'DATABASE',
+        'STRING',
+        'INTEGER',
+        'TEXT',
+        'INT',
+        'AND',
+        'OR',
+        'PKEY',
+        'AUTO_INCREMENT',
+        'LIKE',
+        'IN',
+        'NOT IN',
+        'IS NULL',
+        'IS NOT NULL'
     ];
 
     private array $functions = [
-        'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'CLEAR'
+        'COUNT',
+        'SUM',
+        'AVG',
+        'MIN',
+        'MAX',
+        'CLEAR'
     ];
 
     private array $symbols = ['*', '>', '<', '>=', '<=', ',', '=', '(', ')', ';'];
@@ -36,7 +67,7 @@ final class Lexer
     {
         $regexParts = [
             '\s+', // Espaços em branco
-            '\b(SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|SHOW|DROP|PKEY|AUTO_INCREMENT|TABLES|TABLE|USE|DATABASE|DATABASES|INTEGER|TEXT|AND|OR)\b', // Palavras-chave
+            '\b(SELECT|LIKE|IN|NOT IN|IS NULL|IS NOT NULL|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|SHOW|DROP|PKEY|AUTO_INCREMENT|TABLES|TABLE|USE|DATABASE|DATABASES|INTEGER|TEXT|AND|OR)\b', // Palavras-chave
             '\b(COUNT|SUM|AVG|MIN|MAX|CLEAR)\b', // Funções
             '\*|>|<|>=|<=|,|=|;|\(|\)', // Símbolos
             '\'[^\']*\'|\"[^\"]*\"', // Strings
@@ -88,7 +119,7 @@ final class Lexer
         }
 
         if (preg_match('/^["\'](.*?)["\']$/', $trimmedToken)) {
-            return ['type' => self::TOKEN_STRING, 'value' => $trimmedToken];
+            return ['type' => self::TOKEN_STRING, 'value' => substr($trimmedToken, 1, -1)];
         }
 
         if (preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $trimmedToken)) {

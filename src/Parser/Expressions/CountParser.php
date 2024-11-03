@@ -4,7 +4,7 @@ namespace Fernando\PuskerDB\Parser\Expressions;
 
 use Fernando\PuskerDB\Parser\Parser;
 
-final readonly class ClearParser
+final readonly class CountParser
 {
     public function __construct(private readonly Parser $parser)
     {
@@ -12,11 +12,12 @@ final readonly class ClearParser
 
     public function getAST(): array
     {
-        $this->parser->consume('FUNCTION', 'CLEAR');
+        $this->parser->consume('FUNCTION', 'COUNT');
         $this->parser->consume('SYMBOL', '(');
+        $query = $this->parser->parseString();
         $this->parser->consume('SYMBOL', ')');
         $this->parser->consume('SYMBOL', ';');
 
-        return ['type' => 'CLEAR'];
+        return ['type' => 'COUNT', 'query' => $query];
     }
 }

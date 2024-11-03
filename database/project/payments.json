@@ -1,0 +1,27 @@
+{
+    "columns": {
+        "pkey": "id",
+        "auto_increment": "id",
+        "auto_increment_index": 3,
+        "id": "NUMBER",
+        "payment_id": "NUMBER",
+        "user_id": "NUMBER"
+    },
+    "data": {
+        "1": {
+            "id": 1,
+            "payment_id": 199999,
+            "user_id": 10101010
+        },
+        "2": {
+            "id": 2,
+            "payment_id": 155555,
+            "user_id": 10101010
+        },
+        "3": {
+            "id": 3,
+            "payment_id": 202222,
+            "user_id": 10101010
+        }
+    }
+}

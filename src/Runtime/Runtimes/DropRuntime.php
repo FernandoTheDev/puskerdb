@@ -35,6 +35,10 @@ final class DropRuntime extends Runtime
         if (!$this->storage->unsetDatabase($database)) {
             echo "Error deleting database '{$database}'." . PHP_EOL;
         } else {
+            if ($this->runtime->database === $database) {
+                $this->runtime->input = '[puskerdb]> ';
+                $this->runtime->database = '';
+            }
             echo "Database deleted '{$database}'." . PHP_EOL;
         }
         return;
