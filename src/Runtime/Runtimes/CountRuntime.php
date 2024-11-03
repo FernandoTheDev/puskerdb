@@ -12,11 +12,15 @@ final class CountRuntime extends Runtime
     {
     }
 
-    public function runRuntime(): void
+    public function runRuntime(): array
     {
         $lexer = new Lexer($this->ast['query']['value']);
         $parser = new Parser($lexer->getTokens());
-        $this->runtime->run($parser->parse());
-        // echo json_encode($this->ast, JSON_PRETTY_PRINT) . PHP_EOL;
+
+        $this->runtime->isCli = false;
+        $data = $this->runtime->run($parser->parse());
+        $this->runtime->isCli = true;
+
+        return ['type' => 'count', 'count' => count($data[0])];
     }
 }

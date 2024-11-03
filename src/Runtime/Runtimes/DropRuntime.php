@@ -4,6 +4,7 @@ namespace Fernando\PuskerDB\Runtime\Runtimes;
 use Fernando\PuskerDB\Runtime\Runtime;
 use Fernando\PuskerDB\Storage\Storage;
 use Fernando\PuskerDB\Utils\ConsoleTableUtils;
+use Fernando\PuskerDB\Exception\PuskerException;
 
 final class DropRuntime extends Runtime
 {
@@ -11,54 +12,53 @@ final class DropRuntime extends Runtime
     {
     }
 
-    public function runRuntime(): void
+    public function runRuntime(): array
     {
         switch ($this->ast['drop_type']) {
             case 'DATABASE':
-                $this->dropDatabase();
-                break;
+                return $this->dropDatabase();
             case 'TABLE':
-                $this->dropTable();
-                break;
+                return $this->dropTable();
+            default:
+                return [];
         }
     }
 
-    public function dropDatabase(): void
+    public function dropDatabase(): array
     {
         $database = $this->ast['alvo']['value'];
 
         if (!$this->storage->isdir($database)) {
-            echo "Database don't exists '{$database}'." . PHP_EOL;
-            return;
+            PuskerException::throw("No databases were selected.", []);
+            return [];
         }
 
         if (!$this->storage->unsetDatabase($database)) {
-            echo "Error deleting database '{$database}'." . PHP_EOL;
+            PuskerException::throw("Error deleting database '{$database}'.", []);
+            return [];
         } else {
             if ($this->runtime->database === $database) {
                 $this->runtime->input = '[puskerdb]> ';
                 $this->runtime->database = '';
             }
-            echo "Database deleted '{$database}'." . PHP_EOL;
         }
-        return;
+        return [];
     }
 
-    public function dropTable(): void
+    public function dropTable(): array
     {
         $table = $this->ast['alvo']['value'];
 
         if (!$this->storage->get("{$this->runtime->database}/{$table}.json")) {
-            echo "Table don't exists '{$table}' in database '{$this->runtime->database}'." . PHP_EOL;
-            return;
+            PuskerException::throw("Table don't exists '{$table}' in database '{$this->runtime->database}'.", []);
+            return [];
         }
 
         if ($this->storage->unsetFile($this->runtime->database, $table)) {
-            echo "Table deleted '{$table}'." . PHP_EOL;
-            return;
+            return [];
         } else {
-            echo "Error deleting table '{$table}'." . PHP_EOL;
-            return;
+            PuskerException::throw("Error deleting table '{$table}' in database '{$this->runtime->database}'.", []);
+            return [];
         }
     }
 }

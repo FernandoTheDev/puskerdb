@@ -16,5 +16,5 @@ $lexer = new Lexer($input);
 $parser = new Parser($lexer->getTokens());
 
 $runtime = new Runtime();
-$runtime->run($parser->parse());
+var_dump($runtime->run($parser->parse()));
 // use project; insert into users (id, name) values ("Fernando");

@@ -2,6 +2,7 @@
 namespace Fernando\PuskerDB\Runtime\Runtimes;
 use Fernando\PuskerDB\Runtime\Runtime;
 use Fernando\PuskerDB\Storage\Storage;
+use Fernando\PuskerDB\Exception\PuskerException;
 
 final class InsertRuntime extends Runtime
 {
@@ -12,19 +13,21 @@ final class InsertRuntime extends Runtime
     ) {
     }
 
-    public function runRuntime(): void
+    public function runRuntime(): array
     {
         $database = $this->runtime->database;
         if (!$this->storage->isdir($database)) {
-            echo "Select a database first." . PHP_EOL;
-            return;
+            PuskerException::throw(
+                "No databases were selected.",
+                []
+            );
+            return [];
         }
 
         $table = $this->ast['table']['value'];
         $fileData = $this->storage->get("{$database}/{$table}.json");
         if (!$fileData) {
-            echo "Table doesn't exist." . PHP_EOL;
-            return;
+            return [];
         }
 
         $columns = $this->ast['columns'];
@@ -56,15 +59,13 @@ final class InsertRuntime extends Runtime
         // Verificar colunas obrigatórias
         foreach ($requiredColumns as $requiredColumn) {
             if (!in_array($requiredColumn, $columns)) {
-                echo "Missing required column: {$requiredColumn}" . PHP_EOL;
-                return;
+                return [];
             }
         }
 
         // Verificar se o número de valores corresponde ao número de colunas fornecidas
         if (count($values) !== count($columns)) {
-            echo "Number of values doesn't match number of columns." . PHP_EOL;
-            return;
+            return [];
         }
 
         // Se tiver auto_increment e não foi fornecido, gerar próximo valor
@@ -77,8 +78,7 @@ final class InsertRuntime extends Runtime
         // Processar valores fornecidos
         foreach ($columns as $index => $columnName) {
             if (!isset($values[$index])) {
-                echo "Missing value for column {$columnName}." . PHP_EOL;
-                return;
+                return [];
             }
 
             // Verificar se a coluna existe
@@ -86,8 +86,7 @@ final class InsertRuntime extends Runtime
                 !isset($columnsDb[$columnName]) ||
                 in_array($columnName, ['auto_increment', 'auto_increment_index', 'pkey'])
             ) {
-                echo "Invalid column {$columnName}." . PHP_EOL;
-                return;
+                return [];
             }
 
             $value = $values[$index];
@@ -96,12 +95,10 @@ final class InsertRuntime extends Runtime
             // Se for coluna auto_increment
             if ($hasAutoIncrement && $columnName === $autoIncrementColumn) {
                 if ($value['type'] !== 'NUMBER') {
-                    echo "Type mismatch for auto_increment column. Expected NUMBER." . PHP_EOL;
-                    return;
+                    return [];
                 }
                 if (isset($fileData['data'][$value['value']])) {
-                    echo "Duplicate entry for key 'id'." . PHP_EOL;
-                    return;
+                    return [];
                 }
                 $data[$columnName] = (int) $value['value'];
                 $nextId = $data[$columnName];
@@ -111,8 +108,7 @@ final class InsertRuntime extends Runtime
             // Processar valor baseado no tipo esperado
             if ($expectedType === 'NUMBER') {
                 if ($value['type'] !== 'NUMBER') {
-                    echo "Type mismatch for column {$columnName}. Expected NUMBER." . PHP_EOL;
-                    return;
+                    return [];
                 }
                 $data[$columnName] = (int) $value['value'];
             } else if ($expectedType === 'STRING') {
@@ -135,6 +131,6 @@ final class InsertRuntime extends Runtime
         $fileData['data'][$insertId] = $data;
 
         $this->storage->put("{$database}/{$table}.json", $fileData);
-        echo "Data inserted successfully into table {$table}." . PHP_EOL;
+        return [];
     }
 }

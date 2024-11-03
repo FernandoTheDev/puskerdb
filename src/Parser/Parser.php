@@ -1,120 +1,119 @@
 <?php
+
 namespace Fernando\PuskerDB\Parser;
 
 use Fernando\PuskerDB\Exception\PuskerException;
+use InvalidArgumentException;
 
-final class Parser
+class Parser
 {
-    //    const array TOKEN_TYPES = [
-//        'KEYWORD' => 'T_KEYWORD',
-//        'IDENTIFIER' => 'T_IDENTIFIER',
-//        'NUMBER' => 'T_NUMBER',
-//        'STRING' => 'T_STRING',
-//        'SYMBOL' => 'T_SYMBOL',
-//    ];
+    private const TOKEN_TYPES = [
+        'KEYWORD',
+        'IDENTIFIER',
+        'NUMBER',
+        'STRING',
+        'SYMBOL',
+    ];
 
-    protected int $currentTokenIndex = 0;
-    protected array $tokens = [];
+    private const KEYWORD_OPERATORS = [
+        'LIKE',
+        'IN',
+        'NOT IN',
+        'IS NULL',
+        'IS NOT NULL'
+    ];
+
+    private const SYMBOL_OPERATORS = [
+        '=',
+        '<>',
+        '!=',
+        '<',
+        '>',
+        '<=',
+        '>='
+    ];
+
+    private const COLUMN_CONSTRAINTS = [
+        'PKEY',
+        'AUTO_INCREMENT'
+    ];
+
+    private int $currentTokenIndex = 0;
+    private array $tokens = [];
     private array $lexerTokens;
 
     public function __construct(array $lexerTokens)
     {
+        $this->validateLexerTokens($lexerTokens);
         $this->lexerTokens = $lexerTokens;
+    }
+
+    private function validateLexerTokens(array $tokens): void
+    {
+        foreach ($tokens as $token) {
+            if (!is_array($token) || empty($token)) {
+                throw new InvalidArgumentException('Invalid token format in lexer tokens');
+            }
+        }
     }
 
     public function parse(): array
     {
-        //        var_dump($this->lexerTokens);
-        if (!$this->lexerTokens) {
+        if (empty($this->lexerTokens)) {
             return [];
         }
 
-        $data = [];
+        $ast = [];
+        // var_dump($this->lexerTokens);
 
-        foreach ($this->lexerTokens as $_ => $token) {
-            $this->currentTokenIndex = 0;
-            $class = "Fernando\\PuskerDB\\Parser\\Expressions\\" . ucfirst(strtolower($token[0]['value'])) . "Parser";
-
-            if (!class_exists($class)) {
-                PuskerException::expect("ERROR: Expect KEYWORD, receive {$token[0]['type']} -> '{$token[0]['value']}'");
-                return [];
-            }
-
+        foreach ($this->lexerTokens as $token) {
+            $this->currentTokenIndex = 0;  // Reset do índice
             $this->tokens = $token;
-            $instanceExpression = new $class($this);
-            $data[] = $instanceExpression->getAST();
+            $statement = $this->parseStatement($token[0]);
+
+            if ($statement) {
+                $ast[] = $statement;
+            }
         }
 
-        return $data;
+        return $ast;
     }
 
-    public function parseFunctionArguments(): array
+    private function parseStatement(array $token): array
     {
-        $arguments = [];
-        do {
-            $arguments[] = $this->parseValue();
-            if ($this->currentToken() && $this->currentToken()['value'] === ',') {
-                $this->consume('SYMBOL', ',');
-            } else {
-                break;
-            }
-        } while (true);
+        $keyword = $token['value'] ?? '';
 
-        return $arguments;
+        if ($token['type'] === 'KEYWORD') {
+            $keyword = $token['value'];
+        }
+
+        $parserClass = $this->getParserClass($keyword);
+        // print_r($parserClass);
+
+        if (!class_exists($parserClass)) {
+            throw new PuskerException("Unsupported SQL statement: {$keyword}");
+        }
+
+        return (new $parserClass($this))->getAST();
     }
 
-    public function parseColumnDefinitions(): array
+    private function isCompoundStatement(string $keyword): bool
     {
-        $columns = [];
+        return in_array($keyword, ['CREATE', 'SHOW', 'DROP']);
+    }
 
-        do {
-            // Nome da coluna
-            $columnName = $this->consume('IDENTIFIER')['value'];
-
-            // Tipo da coluna
-            $columnType = $this->consume('KEYWORD')['value'];
-
-            // Initialization o array de definição da coluna
-            $columnDefinition = [
-                'name' => $columnName,
-                'type' => $columnType,
-                'constraints' => [] // Para armazenar modificadores como PKEY, NOT NULL, etc.
-            ];
-
-            // Verificar por modificadores adicionais (PKEY, NOT NULL, etc.)
-            $constraintCount = 0; // Contador para os modificadores
-
-            while ($this->currentToken() && in_array($this->currentToken()['value'], ['PKEY', 'AUTO_INCREMENT'])) {
-                if ($constraintCount < 2) { // Limita a 2 modificadores
-                    $constraint = $this->consume('KEYWORD')['value'];
-                    $columnDefinition['constraints'][] = $constraint;
-                    $constraintCount++;
-                } else {
-                    break; // Sai do loop se já tiver 2 modificadores
-                }
-            }
-
-            // Adiciona a definição da coluna ao array de colunas
-            $columns[] = $columnDefinition;
-
-            // Verifica se há uma vírgula, se sim, consome e continua para a próxima coluna
-            if ($this->currentToken() && $this->currentToken()['value'] === ',') {
-                $this->consume('SYMBOL', ',');
-            } else {
-                break; // Sai do loop se não houver mais colunas
-            }
-        } while (true);
-
-        return $columns;
+    private function getParserClass(string $keyword): string
+    {
+        // Handle compound statements
+        return "Fernando\\PuskerDB\\Parser\\Expressions\\" . ucfirst(strtolower($keyword)) . "Parser";
     }
 
     public function parseIdentifier(): array
     {
         $token = $this->nextToken();
         if ($token['type'] !== 'IDENTIFIER') {
-            PuskerException::expect("Expected T_IDENTIFIER, got {$token['type']}");
+            throw new PuskerException("Expected IDENTIFIER, got {$token['type']}");
         }
-
         return $token;
     }
 
@@ -122,28 +121,83 @@ final class Parser
     {
         $token = $this->nextToken();
         if ($token['type'] !== 'STRING') {
-            PuskerException::expect("Expected STRING, got {$token['type']}");
+            throw new PuskerException("Expected STRING, got {$token['type']}");
+        }
+        return $this->parseStringValue($token);
+    }
+
+    public function parseFunctionArguments(): array
+    {
+        $arguments = [];
+        $this->consume('SYMBOL', '(');
+
+        if ($this->currentToken()['value'] !== ')') {
+            do {
+                $arguments[] = $this->parseValue();
+
+                if ($this->currentToken()['value'] === ')') {
+                    break;
+                }
+
+                $this->consume('SYMBOL', ',');
+            } while (true);
         }
 
-        return $token;
+        $this->consume('SYMBOL', ')');
+        return $arguments;
+    }
+
+    public function parseColumnDefinitions(): array
+    {
+        $columns = [];
+        $this->consume('SYMBOL', '(');
+
+        do {
+            $columns[] = $this->parseColumnDefinition();
+
+            if ($this->currentToken()['value'] === ')') {
+                break;
+            }
+
+            $this->consume('SYMBOL', ',');
+        } while (true);
+
+        $this->consume('SYMBOL', ')');
+        return $columns;
+    }
+
+    private function parseColumnDefinition(): array
+    {
+        $columnName = $this->consume('IDENTIFIER')['value'];
+        $columnType = $this->consume('KEYWORD')['value'];
+
+        $constraints = [];
+        while ($this->hasMoreTokens() && $this->isValidConstraint()) {
+            $constraints[] = $this->consume('KEYWORD')['value'];
+        }
+
+        return [
+            'name' => $columnName,
+            'type' => $columnType,
+            'constraints' => $constraints
+        ];
     }
 
     public function parseColumns(): array
     {
-        $columns = [];
-        // Verifica se a próxima token é '*'
-        if ($this->currentToken() && $this->currentToken()['value'] === '*') {
-            $columns[] = $this->consume('SYMBOL', '*')['value']; // Adiciona '*' à lista de colunas
-            return $columns; // Retorna imediatamente
+        if ($this->currentToken()['value'] === '*') {
+            return [$this->consume('SYMBOL', '*')['value']];
         }
 
+        $columns = [];
         do {
             $columns[] = $this->consume('IDENTIFIER')['value'];
-            if ($this->currentToken() && $this->currentToken()['value'] === ',') {
-                $this->consume('SYMBOL', ',');
-            } else {
+
+            if (!$this->hasMoreTokens() || $this->currentToken()['value'] !== ',') {
                 break;
             }
+
+            $this->consume('SYMBOL', ',');
         } while (true);
 
         return $columns;
@@ -152,34 +206,20 @@ final class Parser
     public function parseValues(): array
     {
         $values = [];
+        $this->consume('SYMBOL', '(');
+
         do {
             $values[] = $this->parseValue();
-            if ($this->currentToken() && $this->currentToken()['value'] === ',') {
-                $this->consume('SYMBOL', ',');
-            } else {
+
+            if ($this->currentToken()['value'] === ')') {
                 break;
             }
+
+            $this->consume('SYMBOL', ',');
         } while (true);
 
+        $this->consume('SYMBOL', ')');
         return $values;
-    }
-
-    public function parseAssignments(): array
-    {
-        $assignments = [];
-        do {
-            $column = $this->consume('IDENTIFIER')['value'];
-            $this->consume('SYMBOL', '=');
-            $value = $this->parseValue();
-            $assignments[] = ['column' => $column, 'value' => $value];
-            if ($this->currentToken() && $this->currentToken()['value'] === ',') {
-                $this->consume('SYMBOL', ',');
-            } else {
-                break;
-            }
-        } while (true);
-
-        return $assignments;
     }
 
     public function parseConditions(): array
@@ -188,159 +228,148 @@ final class Parser
         $logicalOperator = null;
 
         do {
-            // Parse da coluna
-            $column = $this->consume('IDENTIFIER')['value'];
+            $condition = $this->parseCondition();
 
-            // Parse do operador
-            $operator = $this->parseOperator();
-
-            // Parse do valor (que pode ser nulo para IS NULL/IS NOT NULL)
-            $value = $this->parseConditionValue($operator);
-
-            // Monta a condição atual
-            $currentCondition = [
-                'column' => $column,
-                'operator' => $operator,
-                'value' => $value
-            ];
-
-            // Adiciona a condição ao array de condições
-            if ($logicalOperator !== null) {
+            if ($logicalOperator) {
                 $conditions[] = [
                     'logic_operator' => $logicalOperator,
-                    'condition' => $currentCondition
+                    'condition' => $condition
                 ];
             } else {
-                $conditions[] = [
-                    'condition' => $currentCondition
-                ];
+                $conditions[] = ['condition' => $condition];
             }
 
-            // Verifica se há mais condições (AND/OR)
-            if ($this->currentToken() && in_array($this->currentToken()['value'], ['AND', 'OR'])) {
-                $logicalOperator = $this->consume('KEYWORD')['value'];
-            } else {
+            if (
+                !$this->hasMoreTokens() ||
+                !in_array($this->currentToken()['value'], ['AND', 'OR'])
+            ) {
                 break;
             }
 
+            $logicalOperator = $this->consume('KEYWORD')['value'];
         } while (true);
 
         return $conditions;
+    }
+
+    private function parseCondition(): array
+    {
+        $column = $this->consume('IDENTIFIER')['value'];
+        $operator = $this->parseOperator();
+        var_dump($operator);
+        $value = null;
+
+        if (!in_array($operator, ['IS NULL', 'IS NOT NULL'])) {
+            $value = $this->parseValue();
+        }
+
+        return [
+            'column' => $column,
+            'operator' => $operator,
+            'value' => $value
+        ];
     }
 
     private function parseOperator(): string
     {
         $token = $this->currentToken();
 
-        // Verifica operadores especiais primeiro (IS NULL, IS NOT NULL)
-        if ($token['type'] === 'KEYWORD' && in_array($token['value'], ['IS'])) {
-            $this->consume('KEYWORD', 'IS');
-
-            if ($this->currentToken()['type'] === 'KEYWORD' && $this->currentToken()['value'] === 'NOT') {
-                $this->consume('KEYWORD', 'NOT');
-                $this->consume('KEYWORD', 'NULL');
-                return 'IS NOT NULL';
+        // Se for um operador keyword
+        if ($token['type'] === 'KEYWORD') {
+            if ($token['value'] === 'IS') {
+                return $this->parseIsNullOperator();
             }
 
-            if ($this->currentToken()['type'] === 'KEYWORD' && $this->currentToken()['value'] === 'NULL') {
-                $this->consume('KEYWORD', 'NULL');
-                return 'IS NULL';
+            if ($token['value'] === 'LIKE') {
+                $this->currentTokenIndex++; // Consome o token LIKE
+                return 'LIKE';
             }
-        }
 
-        // Verifica operadores IN/NOT IN
-        if ($token['type'] === 'KEYWORD' && in_array($token['value'], ['IN', 'NOT'])) {
-            if ($token['value'] === 'NOT') {
-                $this->consume('KEYWORD', 'NOT');
-                $this->consume('KEYWORD', 'IN');
-                return 'NOT IN';
-            } else {
-                $this->consume('KEYWORD', 'IN');
-                return 'IN';
+            if ($token['value'] === 'IN' || $token['value'] === 'NOT') {
+                return $this->parseInOperator();
             }
         }
 
-        // Operadores padrão de comparação
-        $validOperators = ['=', '<>', '!=', '<', '>', '<=', '>=', 'LIKE'];
-
-        if (
-            $token['type'] === 'SYMBOL' ||
-            ($token['type'] === 'KEYWORD' && in_array($token['value'], ['LIKE']))
-        ) {
-            $operator = $this->nextToken()['value'];
-            if (!in_array($operator, $validOperators)) {
-                PuskerException::expect("Invalid operator: {$operator}");
-            }
-            return $operator;
+        // Se for um operador símbolo
+        if ($token['type'] === 'SYMBOL' && in_array($token['value'], self::SYMBOL_OPERATORS)) {
+            return $this->nextToken()['value'];
         }
 
-        PuskerException::expect("Expected operator, got {$token['type']} ({$token['value']})");
-        return '';
+        throw new PuskerException("Invalid operator: {$token['value']}");
     }
 
-    private function parseConditionValue(string $operator): ?array
+    private function parseIsNullOperator(): string
     {
-        // Para operadores IS NULL e IS NOT NULL, não há valor
-        if (in_array($operator, ['IS NULL', 'IS NOT NULL'])) {
-            return null;
+        $this->consume('KEYWORD', 'IS');
+
+        if ($this->currentToken()['value'] === 'NOT') {
+            $this->consume('KEYWORD', 'NOT');
+            $this->consume('KEYWORD', 'NULL');
+            return 'IS NOT NULL';
         }
 
-        // Para operadores IN e NOT IN, parse uma lista de valores
-        if (in_array($operator, ['IN', 'NOT IN'])) {
-            return $this->parseInList();
-        }
-
-        // Para LIKE e operadores padrão, parse um único valor
-        return $this->parseValue();
+        $this->consume('KEYWORD', 'NULL');
+        return 'IS NULL';
     }
 
-    private function parseInList(): array
+    private function parseInOperator(): string
     {
-        $values = [];
+        if ($this->currentToken()['value'] === 'NOT') {
+            $this->consume('KEYWORD', 'NOT');
+            $this->consume('KEYWORD', 'IN');
+            return 'NOT IN';
+        }
 
-        // Consome o parêntese de abertura
-        $this->consume('SYMBOL', '(');
-
-        do {
-            $values[] = $this->parseValue();
-
-            if ($this->currentToken()['value'] === ',') {
-                $this->consume('SYMBOL', ',');
-            } else {
-                break;
-            }
-        } while (true);
-
-        // Consome o parêntese de fechamento
-        $this->consume('SYMBOL', ')');
-
-        return [
-            'type' => 'LIST',
-            'value' => $values
-        ];
+        $this->consume('KEYWORD', 'IN');
+        return 'IN';
     }
 
     public function parseValue(): array
     {
         $token = $this->nextToken();
-        if ($token['type'] === 'STRING') {
-            $token['value'] = (string) str_ireplace(['"', "'"], '', $token['value']);
-            return $token;
+
+        switch ($token['type']) {
+            case 'STRING':
+                return $this->parseStringValue($token);
+            case 'NUMBER':
+                return $this->parseNumberValue($token);
+            case 'IDENTIFIER':
+                return $token;
+            default:
+                throw new PuskerException("Invalid value type: {$token['type']} -> {$token['value']}");
         }
-        if ($token['type'] === 'NUMBER') {
-            $token['value'] = (int) $token['value'];
-            return $token;
-        }
-        PuskerException::expect("Expected value, got {$token['type']}");
-        return [];
     }
 
-    public function consume(string $type, string $value = null): array
+    private function parseStringValue(array $token): array
     {
+        $token['value'] = trim($token['value'], '"\'');
+        return $token;
+    }
+
+    private function parseNumberValue(array $token): array
+    {
+        $token['value'] = (int) $token['value'];
+        return $token;
+    }
+
+    public function consume(string $type, ?string $value = null): array
+    {
+        if (!$this->hasMoreTokens()) {
+            throw new PuskerException('Unexpected end of input');
+        }
+
+        // var_dump($this->currentToken());
         $token = $this->nextToken();
         // var_dump($token);
-        if ($token['type'] !== $type || ($value !== null && $token['value'] !== $value)) {
-            PuskerException::expect(sprintf("Expected %s '%s', got %s '%s'", $type, $value, $token['type'], $token['value']));
+
+        if (
+            $token['type'] !== $type ||
+            ($value !== null && $token['value'] !== $value)
+        ) {
+            throw new PuskerException(
+                "Expected {$type} " . ($value ? "'{$value}'" : '') .
+                ", got {$token['type']} '{$token['value']}'"
+            );
         }
 
         return $token;
@@ -351,13 +380,30 @@ final class Parser
         return $this->tokens[$this->currentTokenIndex] ?? null;
     }
 
+    /**
+     * Advances to the next token in the list and returns it.
+     *
+     * @return array The next token in the list.
+     * @throws PuskerException if there are no more tokens to process.
+     */
     public function nextToken(): array
     {
-        if (!isset($this->tokens[$this->currentTokenIndex])) {
-            PuskerException::expect("Unexpected end of input");
-            return ['type' => 'UNKNOW', 'value' => ''];
+        if (!$this->hasMoreTokens()) {
+            throw new PuskerException("Unexpected end of input");
         }
-
         return $this->tokens[$this->currentTokenIndex++];
+    }
+
+    protected function hasMoreTokens(): bool
+    {
+        return isset($this->tokens[$this->currentTokenIndex]);
+    }
+
+    private function isValidConstraint(): bool
+    {
+        $token = $this->currentToken();
+        return $token &&
+            $token['type'] === 'KEYWORD' &&
+            in_array($token['value'], self::COLUMN_CONSTRAINTS);
     }
 }

@@ -10,8 +10,9 @@ final class ClearRuntime extends Runtime
     {
     }
 
-    public function runRuntime(): void
+    public function runRuntime(): array
     {
         system('clear');
+        return [];
     }
 }

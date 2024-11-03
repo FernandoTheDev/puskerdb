@@ -2,12 +2,16 @@
 
 use Fernando\PuskerDB\Lexer\Lexer;
 use Fernando\PuskerDB\Parser\Parser;
+use Fernando\PuskerDB\Pusker\Pusker;
 use Fernando\PuskerDB\Runtime\Runtime;
+use Fernando\PuskerDB\Storage\Storage;
 use Fernando\PuskerDB\Utils\ClockUtils;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$runtime = new Runtime();
+$pusker = new Pusker();
+$runtime = new Runtime(new Storage(), $pusker);
+$runtime->setCli(true);
 $clock = new ClockUtils(microtime(true));
 
 $query = '';

@@ -4,9 +4,9 @@ namespace Fernando\PuskerDB\Parser\Expressions;
 
 use Fernando\PuskerDB\Parser\Parser;
 
-final readonly class CountParser
+final class CountParser extends Parser
 {
-    public function __construct(private readonly Parser $parser)
+    public function __construct(private Parser $parser)
     {
     }
 

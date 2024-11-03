@@ -1,9 +1,0 @@
-{
-    "columns": {
-        "auto_increment": "id",
-        "auto_increment_index": 0,
-        "id": "PKEY",
-        "test": "STRING"
-    },
-    "data": []
-}

@@ -3,7 +3,7 @@ namespace Fernando\PuskerDB\Parser\Expressions;
 
 use Fernando\PuskerDB\Parser\Parser;
 
-final readonly class InsertParser
+final class InsertParser extends Parser
 {
     public function __construct(private Parser $parser)
     {
@@ -19,11 +19,15 @@ final readonly class InsertParser
         $columns = $this->parser->parseColumns();
         $this->parser->consume('SYMBOL', ')');
 
+        // var_dump($this->parser->currentToken());
+
         $this->parser->consume('KEYWORD', 'VALUES');
 
-        $this->parser->consume('SYMBOL', '(');
+        // var_dump($this->parser->currentToken());
+
+        // $this->parser->consume('SYMBOL', '(');
         $values = $this->parser->parseValues();
-        $this->parser->consume('SYMBOL', ')');
+        // $this->parser->consume('SYMBOL', ')');
         $this->parser->consume('SYMBOL', ';');
 
         return [

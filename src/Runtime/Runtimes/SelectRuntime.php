@@ -4,105 +4,111 @@ namespace Fernando\PuskerDB\Runtime\Runtimes;
 use Fernando\PuskerDB\Runtime\Runtime;
 use Fernando\PuskerDB\Storage\Storage;
 use Fernando\PuskerDB\Utils\ConsoleTableUtils;
+use Fernando\PuskerDB\Exception\PuskerException;
 
 final class SelectRuntime extends Runtime
 {
-    public function __construct(private readonly Runtime $runtime, private readonly array $ast, protected readonly Storage $storage)
-    {
+    private array $columnsCache = [];
+
+    public function __construct(
+        private readonly Runtime $runtime,
+        private readonly array $ast,
+        protected readonly Storage $storage
+    ) {
     }
 
-    public function runRuntime(): void
+    public function runRuntime(): array
     {
         $database = $this->runtime->database;
-
         if (!$this->storage->isdir($database)) {
-            echo "Select a database first." . PHP_EOL;
-            return;
+            PuskerException::throw("No databases were selected.", []);
+            return [];
         }
 
         $table = $this->ast['table']['value'];
         $fileData = $this->storage->get("{$database}/{$table}.json");
-
         if (!$fileData) {
-            echo "Table doesn't exist." . PHP_EOL;
-            return;
+            PuskerException::throw("Table doesn't exist.", []);
+            return [];
         }
 
-        $columns = $this->ast['columns'];
-        $columnsDb = $fileData['columns'];
-        $sub = 0;
+        $requestedColumns = $this->ast['columns'];
+        $tableColumns = $this->prepareTableColumns($fileData['columns']);
 
-        // Remove as chaves primárias e auto-incremento do total de colunas
-        if (array_key_exists('pkey', $columnsDb)) {
-            $sub--;
-            unset($columnsDb['pkey']);
+        // Validate and prepare columns
+        $columns = $this->validateAndPrepareColumns($requestedColumns, $tableColumns);
+        if (empty($columns)) {
+            PuskerException::throw("No columns were selected.", []);
+            return [];
         }
 
-        if (array_key_exists('auto_increment', $columnsDb)) {
-            $sub -= 2;
-            unset($columnsDb['auto_increment_index']);
-            unset($columnsDb['auto_increment']);
+        // Get filtered data
+        $data = $this->filterData($fileData['data'], $columns);
+
+        return $this->formatOutput($data, $columns);
+    }
+
+    private function prepareTableColumns(array $columns): array
+    {
+        // Remove system columns
+        unset($columns['pkey'], $columns['auto_increment'], $columns['auto_increment_index']);
+        $this->columnsCache = $columns;
+        return $columns;
+    }
+
+    private function validateAndPrepareColumns(array $requestedColumns, array $tableColumns): array
+    {
+        // Handle wildcard
+        if (count($requestedColumns) === 1 && $requestedColumns[0] === '*') {
+            // print_r(array_keys($tableColumns));
+            // die('1');
+            return array_keys($tableColumns);
         }
 
-        $diff = count($columns) - count($columnsDb) + $sub;
+        // Validate column count
+        if (count($requestedColumns) > count($tableColumns)) {
+            PuskerException::throw("No columns were selected.", []);
+            return [];
+        }
 
-        // Lógica para suportar o asterisco (*)
-        if (count($columns) === 1 && $columns[0] === '*') {
-            $columns = array_keys($columnsDb); // Seleciona todas as colunas
-        } else {
-            if ($diff > 1) {
-                echo "You passed " . count($columns) . " columns but the table requires " . (count($columnsDb)) . PHP_EOL;
-                return;
+        // Validate column existence
+        foreach ($requestedColumns as $column) {
+            if (!isset($tableColumns[$column])) {
+                PuskerException::throw("No columns were selected.", []);
+                return [];
             }
+        }
 
-            if ((count($columns) + $sub) > count($columnsDb)) {
-                echo "You declared " . count($columns) . " columns and " . (count($columnsDb) - $sub) . " values." . PHP_EOL;
-                return;
-            }
+        return array_flip($requestedColumns);
+    }
 
-            foreach ($columns as $column) {
-                if (!array_key_exists($column, $columnsDb)) {
-                    echo "Column {$column} doesn't exist." . PHP_EOL;
-                    return;
+    private function filterData(array $data, array $columns): array
+    {
+        if ($this->ast['conditions'] !== null) {
+            return $this->executeConditions($this->ast['conditions'], $data);
+        }
+        return $data;
+    }
+
+    private function formatOutput(array $data, array $columns): array
+    {
+        $output = [];
+        foreach ($data as $rowIndex => $row) {
+            $formattedRow = [];
+            foreach ($row as $colIndex => $value) {
+                if ($colIndex === -1) {
+                    $formattedRow[] = 'N/A';
+                    continue;
+                }
+
+                if (in_array($colIndex, $columns)) {
+                    $formattedRow[$colIndex] = $value ?? 'N/A';
                 }
             }
-
-            // Preparar o mapeamento de colunas para facilitar a filtragem
-            $afterColumns = $columns;
-            $columns = [];
-            foreach ($afterColumns as $index => $column) {
-                $columns[$column] = $index;
-            }
-
-            foreach ($columnsDb as $column => $value) {
-                if (!array_key_exists($column, $columns)) {
-                    unset($columnsDb[$column]);
-                }
+            if (!empty($formattedRow)) {
+                $output[$rowIndex] = $formattedRow;
             }
         }
-
-        // Aplicar condições, se existirem
-        if ($this->ast['conditions'] != null) {
-            $data = $this->executeConditions($this->ast['conditions'], $fileData['data']);
-        } else {
-            $data = $fileData['data'];
-        }
-
-        $consoleTable = new ConsoleTableUtils();
-        $consoleTable->setHeaders(array_keys($columnsDb));
-
-        foreach ($data as $row => $values) {
-            $filteredRow = [];
-            foreach ($values as $index => $_data) {
-                if ($index === -1) {
-                    $filteredRow[] = 'N/A';
-                } else if (in_array($index, $columns, true)) {
-                    $filteredRow[] = $_data ?? 'N/A';
-                }
-            }
-            $consoleTable->addRow($filteredRow);
-        }
-
-        $consoleTable->render();
+        return ['type' => 'table', 'header' => $this->columnsCache, 'data' => $output];
     }
 }

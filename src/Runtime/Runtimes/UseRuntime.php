@@ -3,6 +3,7 @@ namespace Fernando\PuskerDB\Runtime\Runtimes;
 
 use Fernando\PuskerDB\Runtime\Runtime;
 use Fernando\PuskerDB\Storage\Storage;
+use Fernando\PuskerDB\Exception\PuskerException;
 
 final class UseRuntime extends Runtime
 {
@@ -10,15 +11,15 @@ final class UseRuntime extends Runtime
     {
     }
 
-    public function runRuntime(): void
+    public function runRuntime(): array
     {
         $database = $this->ast['database']['value'];
         if (!$this->storage->isdir($database)) {
-            echo "Database dont't exists." . PHP_EOL;
-            return;
+            PuskerException::throw("Database dont't exists.", []);
+            return [];
         }
         $this->runtime->database = $database;
         $this->runtime->input = "[puskerdb/{$this->runtime->database}]> ";
-        // echo "Database set '{$this->runtime->database}'." . PHP_EOL;
+        return [];
     }
 }

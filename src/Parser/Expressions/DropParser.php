@@ -3,7 +3,7 @@ namespace Fernando\PuskerDB\Parser\Expressions;
 
 use Fernando\PuskerDB\Parser\Parser;
 
-final readonly class DropParser
+final class DropParser extends Parser
 {
     public function __construct(private Parser $parser)
     {

@@ -4,7 +4,7 @@ namespace Fernando\PuskerDB\Parser\Expressions;
 
 use Fernando\PuskerDB\Parser\Parser;
 
-final readonly class ClearParser
+final class ClearParser extends Parser
 {
     public function __construct(private readonly Parser $parser)
     {

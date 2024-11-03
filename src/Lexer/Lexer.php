@@ -32,7 +32,7 @@ final class Lexer
         'DATABASES',
         'DATABASE',
         'STRING',
-        'INTEGER',
+        'NUMBER',
         'TEXT',
         'INT',
         'AND',
@@ -67,9 +67,9 @@ final class Lexer
     {
         $regexParts = [
             '\s+', // Espaços em branco
-            '\b(SELECT|LIKE|IN|NOT IN|IS NULL|IS NOT NULL|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|SHOW|DROP|PKEY|AUTO_INCREMENT|TABLES|TABLE|USE|DATABASE|DATABASES|INTEGER|TEXT|AND|OR)\b', // Palavras-chave
+            '\b(SELECT|LIKE|IN|NOT IN|IS NULL|IS NOT NULL|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|SHOW|DROP|PKEY|AUTO_INCREMENT|TABLES|TABLE|USE|DATABASE|DATABASES|NUMBER|TEXT|AND|OR)\b', // Palavras-chave
             '\b(COUNT|SUM|AVG|MIN|MAX|CLEAR)\b', // Funções
-            '\*|>|<|>=|<=|,|=|;|\(|\)', // Símbolos
+            '\*|>=|<=|<|>|,|=|;|\(|\)', // Símbolos
             '\'[^\']*\'|\"[^\"]*\"', // Strings
             '[a-zA-Z_][a-zA-Z0-9_]*', // Identificadores
             '\d+', // Números
@@ -83,6 +83,14 @@ final class Lexer
             $query = trim($query);
             if ($query === '') {
                 continue; // Pula consultas vazias
+            }
+
+            if ($query[0] === '#') {
+                continue; // Pula comentários
+            }
+
+            if (substr($query, 1, 2) === '--') {
+                continue; // Pula linhas comentadas
             }
 
             $tokens = [];

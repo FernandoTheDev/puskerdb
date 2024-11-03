@@ -11,61 +11,48 @@ final class ShowRuntime extends Runtime
     {
     }
 
-    public function runRuntime(): void
+    public function runRuntime(): array
     {
         switch ($this->ast['show_type']) {
             case 'DATABASE':
-                $this->showDatabase();
-                break;
+                return $this->showDatabase();
             case 'DATABASES':
-                $this->showDatabases();
-                break;
+                return $this->showDatabases();
             case 'TABLES':
-                $this->showTables();
-                break;
+                return $this->showTables();
+            default:
+                return [];
         }
     }
 
-    public function showDatabases(): void
+    public function showDatabases(): array
     {
         $databases = $this->storage->getAllFolders();
 
         if (!$databases) {
-            echo "No databases to be shown" . PHP_EOL;
-            return;
+            return [];
         }
 
-        $consoleTable = new ConsoleTableUtils();
-        $consoleTable->setHeaders(['Databases']);
-
-        foreach ($databases as $_ => $database) {
-            $consoleTable->addRow([$database]);
-        }
-
-        $consoleTable->render();
+        return ['type' => 'table', 'header' => ['Databases' => 0], 'data' => $databases];
     }
 
-    public function showTables(): void
+    public function showTables(): array
     {
         $tables = $this->storage->getAllFiles($this->ast['database']['value']);
 
         if (!$tables) {
-            echo "No tables to be shown" . PHP_EOL;
-            return;
+            return [];
         }
 
-        $consoleTable = new ConsoleTableUtils();
-        $consoleTable->setHeaders(['Tables']);
-
-        foreach ($tables as $_ => $table) {
-            $consoleTable->addRow([explode('.', $table)[0]]);
+        foreach ($tables as $key => $table) {
+            $tables[$key] = str_replace('.json', '', $table);
         }
 
-        $consoleTable->render();
+        return ['type' => 'table', 'header' => ['Tables' => 0], 'data' => $tables];
     }
 
-    public function showDatabase(): void
+    public function showDatabase(): array
     {
-        echo "Your database is '{$this->runtime->database}'" . PHP_EOL;
+        return ['type' => 'database', 'database' => $this->runtime->database];
     }
 }

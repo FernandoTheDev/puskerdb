@@ -5,7 +5,8 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Fernando\\PuskerDB\\": "src/"
+            "Fernando\\PuskerDB\\": "src/",
+            "Fernando\\Server\\": "server/"
         }
     },
     "authors": [
@@ -14,7 +15,12 @@
             "email": "fernandolovephp@gmail.com"
         }
     ],
-  "require": {
-    "ext-readline": "*"
-  }
+    "require": {
+        "ext-readline": "*",
+        "psr/log": "^3.0",
+        "cboden/ratchet": "^0.4.4",
+        "amphp/socket": "^2.3",
+        "react/socket": "^1.16",
+        "textalk/websocket": "^1.5"
+    }
 }
